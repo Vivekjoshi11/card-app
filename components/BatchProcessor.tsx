@@ -76,23 +76,11 @@ export default function BatchProcessor() {
       const next: TextElement = { ...elementRef.current!, text: name };
       elementRef.current = next;
       setElement(next);
-      const dataUrl = editorRef.current.exportCard();
-      if (!dataUrl) continue;
-
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `${sanitize(name)}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      const ok = await editorRef.current.saveCard(`${sanitize(name)}.png`);
+      if (!ok) continue;
 
       count++;
       setProgress(count);
-      await new Promise((r) => setTimeout(r, 120));
     }
 
     setProcessing(false);
@@ -158,7 +146,8 @@ export default function BatchProcessor() {
       <div className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700">
         <h3 className="mb-1 text-sm font-semibold">3. Generate</h3>
         <p className="mb-3 text-xs text-zinc-500">
-          Each image is downloaded to your default Downloads folder, one file per name.
+          Each image will open a Save As dialog (or download to your default folder),
+          one file per name.
         </p>
         <button
           onClick={handleProcess}

@@ -7,6 +7,8 @@ export interface TextElement {
   x: number;
   y: number;
   text: string;
+  prefix: string;
+  suffix: string;
   fontSize: number;
   color: string;
   bold: boolean;
@@ -16,6 +18,7 @@ export interface TextElement {
 
 export interface CardEditorHandle {
   exportCard: () => string | null;
+  saveCard: (filename: string) => Promise<string | null>;
 }
 
 interface CardEditorProps {
@@ -41,13 +44,39 @@ const FONT_OPTIONS = [
 let idCounter = 0;
 const createId = () => `el-${Date.now()}-${idCounter++}`;
 
-const downloadDataUrl = (dataUrl: string, filename: string) => {
+const saveDataUrl = async (dataUrl: string, filename: string): Promise<void> => {
+  const blob = await (await fetch(dataUrl)).blob();
+  const file = new File([blob], filename, { type: "image/png" });
+  const w = window as unknown as {
+    showSaveFilePicker?: (options: unknown) => Promise<{
+      createWritable: () => Promise<{
+        write: (d: Blob) => Promise<void>;
+        close: () => Promise<void>;
+      }>;
+    }>;
+  };
+  if (typeof w.showSaveFilePicker === "function") {
+    try {
+      const handle = await w.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: "PNG Image", accept: { "image/png": [".png"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(file);
+      await writable.close();
+      return;
+    } catch {
+      // fall through to default download
+    }
+  }
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = dataUrl;
+  a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 };
 
 const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
@@ -70,12 +99,15 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       }
       const el = elementRef.current;
-      if (el && el.text && el.text.trim().length > 0) {
-        const fontPx = (canvas.width * el.fontSize) / 100;
-        ctx.font = `${el.italic ? "italic " : ""}${el.bold ? 700 : 400} ${fontPx}px ${el.fontFamily}, Arial, sans-serif`;
-        ctx.fillStyle = el.color;
-        ctx.textBaseline = "top";
-        ctx.fillText(el.text, (canvas.width * el.x) / 100, (canvas.height * el.y) / 100);
+      if (el) {
+        const fullText = `${el.prefix ?? ""}${el.text ?? ""}${el.suffix ?? ""}`;
+        if (fullText.trim().length > 0) {
+          const fontPx = (canvas.width * el.fontSize) / 100;
+          ctx.font = `${el.italic ? "italic " : ""}${el.bold ? 700 : 400} ${fontPx}px ${el.fontFamily}, Arial, sans-serif`;
+          ctx.fillStyle = el.color;
+          ctx.textBaseline = "top";
+          ctx.fillText(fullText, (canvas.width * el.x) / 100, (canvas.height * el.y) / 100);
+        }
       }
     }, []);
 
@@ -115,17 +147,30 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
       if (!canvas || !ctx || !img) return null;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      if (el && el.text && el.text.trim().length > 0) {
-        const fontPx = (canvas.width * el.fontSize) / 100;
-        ctx.font = `${el.italic ? "italic " : ""}${el.bold ? 700 : 400} ${fontPx}px ${el.fontFamily}, Arial, sans-serif`;
-        ctx.fillStyle = el.color;
-        ctx.textBaseline = "top";
-        ctx.fillText(el.text, (canvas.width * el.x) / 100, (canvas.height * el.y) / 100);
+      if (el) {
+        const fullText = `${el.prefix ?? ""}${el.text ?? ""}${el.suffix ?? ""}`;
+        if (fullText.trim().length > 0) {
+          const fontPx = (canvas.width * el.fontSize) / 100;
+          ctx.font = `${el.italic ? "italic " : ""}${el.bold ? 700 : 400} ${fontPx}px ${el.fontFamily}, Arial, sans-serif`;
+          ctx.fillStyle = el.color;
+          ctx.textBaseline = "top";
+          ctx.fillText(fullText, (canvas.width * el.x) / 100, (canvas.height * el.y) / 100);
+        }
       }
       return canvas.toDataURL("image/png");
     }, []);
 
-    useImperativeHandle(ref, () => ({ exportCard }), [exportCard]);
+    const saveCard = useCallback(
+      async (filename: string): Promise<string | null> => {
+        const dataUrl = exportCard();
+        if (!dataUrl) return null;
+        await saveDataUrl(dataUrl, filename);
+        return dataUrl;
+      },
+      [exportCard]
+    );
+
+    useImperativeHandle(ref, () => ({ exportCard, saveCard }), [exportCard, saveCard]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -147,6 +192,8 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
         x: (x / canvas.width) * 100,
         y: (y / canvas.height) * 100,
         text: elementRef.current?.text ?? "",
+        prefix: elementRef.current?.prefix ?? "",
+        suffix: elementRef.current?.suffix ?? "",
         fontSize: elementRef.current?.fontSize ?? 6,
         color: elementRef.current?.color ?? "#ffffff",
         bold: elementRef.current?.bold ?? true,
@@ -156,11 +203,8 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
       onElementChange(newEl);
     };
 
-    const handleExport = () => {
-      const dataUrl = exportCard();
-      if (dataUrl) {
-        downloadDataUrl(dataUrl, `${fileName.trim() || "card"}.png`);
-      }
+    const handleExport = async () => {
+      await saveCard(`${fileName.trim() || "card"}.png`);
     };
 
     return (
@@ -253,6 +297,34 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
                       onElementChange({ ...element, color: e.target.value })
                     }
                     className="w-full h-10 rounded-lg border border-zinc-300 cursor-pointer dark:border-zinc-600"
+                  />
+                </div>
+                <div className="mb-2">
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                    Prefix (e.g. OK, Mr.)
+                  </label>
+                  <input
+                    type="text"
+                    value={element.prefix}
+                    onChange={(e) =>
+                      onElementChange({ ...element, prefix: e.target.value })
+                    }
+                    placeholder="Optional prefix"
+                    className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                  />
+                </div>
+                <div className="mb-2">
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                    Suffix (e.g. )
+                  </label>
+                  <input
+                    type="text"
+                    value={element.suffix}
+                    onChange={(e) =>
+                      onElementChange({ ...element, suffix: e.target.value })
+                    }
+                    placeholder="Optional suffix"
+                    className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
                   />
                 </div>
                 <div className="sm:col-span-2">
