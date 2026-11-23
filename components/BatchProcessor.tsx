@@ -15,6 +15,7 @@ export default function BatchProcessor() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [nameKey, setNameKey] = useState<string>("");
+  const [fileNameKey, setFileNameKey] = useState<string>("");
   const [excelName, setExcelName] = useState<string>("");
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -41,6 +42,7 @@ export default function BatchProcessor() {
       setRows(json);
       setColumns(keys);
       setNameKey(candidate);
+      setFileNameKey("");
       setExcelName(file.name);
       setMessage(`Loaded ${json.length} rows from "${file.name}".`);
       setProgress(0);
@@ -73,26 +75,17 @@ export default function BatchProcessor() {
       const name = String(raw ?? "").trim();
       if (!name) continue;
 
+      const rawFileName = fileNameKey ? String(row[fileNameKey] ?? "").trim() : "";
+      const saveAs = sanitize(rawFileName || name);
+
       const next: TextElement = { ...elementRef.current!, text: name };
+      const ok = await editorRef.current.saveCard(`${saveAs}.png`, next);
+      if (!ok) continue;
+
       elementRef.current = next;
       setElement(next);
-      const dataUrl = editorRef.current.exportCard();
-      if (!dataUrl) continue;
-
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `${sanitize(name)}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-
       count++;
       setProgress(count);
-      await new Promise((r) => setTimeout(r, 120));
     }
 
     setProcessing(false);
@@ -138,12 +131,25 @@ export default function BatchProcessor() {
         {excelName && <p className="mt-2 text-xs text-zinc-500">Selected: {excelName}</p>}
         {columns.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <label className="text-zinc-600 dark:text-zinc-400">Name column:</label>
+            <label className="text-zinc-600 dark:text-zinc-400">Name column (on card):</label>
             <select
               value={nameKey}
               onChange={(e) => setNameKey(e.target.value)}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
             >
+              {columns.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <label className="text-zinc-600 dark:text-zinc-400 ml-2">Image file name column:</label>
+            <select
+              value={fileNameKey}
+              onChange={(e) => setFileNameKey(e.target.value)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+            >
+              <option value="">(same as name)</option>
               {columns.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -158,7 +164,8 @@ export default function BatchProcessor() {
       <div className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700">
         <h3 className="mb-1 text-sm font-semibold">3. Generate</h3>
         <p className="mb-3 text-xs text-zinc-500">
-          Each image is downloaded to your default Downloads folder, one file per name.
+          Each image will open a Save As dialog (or download to your default folder),
+          one file per name.
         </p>
         <button
           onClick={handleProcess}
