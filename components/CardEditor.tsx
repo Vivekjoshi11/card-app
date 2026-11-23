@@ -17,8 +17,8 @@ export interface TextElement {
 }
 
 export interface CardEditorHandle {
-  exportCard: () => string | null;
-  saveCard: (filename: string) => Promise<string | null>;
+  exportCard: (overrideElement?: TextElement) => string | null;
+  saveCard: (filename: string, overrideElement?: TextElement) => Promise<string | null>;
 }
 
 interface CardEditorProps {
@@ -139,11 +139,11 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
       render();
     }, [element, render]);
 
-    const exportCard = useCallback((): string | null => {
+    const exportCard = useCallback((overrideElement?: TextElement): string | null => {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
       const img = imageRef.current;
-      const el = elementRef.current;
+      const el = overrideElement ?? elementRef.current;
       if (!canvas || !ctx || !img) return null;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -161,8 +161,8 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
     }, []);
 
     const saveCard = useCallback(
-      async (filename: string): Promise<string | null> => {
-        const dataUrl = exportCard();
+      async (filename: string, overrideElement?: TextElement): Promise<string | null> => {
+        const dataUrl = exportCard(overrideElement);
         if (!dataUrl) return null;
         await saveDataUrl(dataUrl, filename);
         return dataUrl;

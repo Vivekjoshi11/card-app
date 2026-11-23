@@ -15,6 +15,7 @@ export default function BatchProcessor() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [columns, setColumns] = useState<string[]>([]);
   const [nameKey, setNameKey] = useState<string>("");
+  const [fileNameKey, setFileNameKey] = useState<string>("");
   const [excelName, setExcelName] = useState<string>("");
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -41,6 +42,7 @@ export default function BatchProcessor() {
       setRows(json);
       setColumns(keys);
       setNameKey(candidate);
+      setFileNameKey("");
       setExcelName(file.name);
       setMessage(`Loaded ${json.length} rows from "${file.name}".`);
       setProgress(0);
@@ -73,12 +75,15 @@ export default function BatchProcessor() {
       const name = String(raw ?? "").trim();
       if (!name) continue;
 
+      const rawFileName = fileNameKey ? String(row[fileNameKey] ?? "").trim() : "";
+      const saveAs = sanitize(rawFileName || name);
+
       const next: TextElement = { ...elementRef.current!, text: name };
-      elementRef.current = next;
-      setElement(next);
-      const ok = await editorRef.current.saveCard(`${sanitize(name)}.png`);
+      const ok = await editorRef.current.saveCard(`${saveAs}.png`, next);
       if (!ok) continue;
 
+      elementRef.current = next;
+      setElement(next);
       count++;
       setProgress(count);
     }
@@ -126,12 +131,25 @@ export default function BatchProcessor() {
         {excelName && <p className="mt-2 text-xs text-zinc-500">Selected: {excelName}</p>}
         {columns.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <label className="text-zinc-600 dark:text-zinc-400">Name column:</label>
+            <label className="text-zinc-600 dark:text-zinc-400">Name column (on card):</label>
             <select
               value={nameKey}
               onChange={(e) => setNameKey(e.target.value)}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
             >
+              {columns.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <label className="text-zinc-600 dark:text-zinc-400 ml-2">Image file name column:</label>
+            <select
+              value={fileNameKey}
+              onChange={(e) => setFileNameKey(e.target.value)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+            >
+              <option value="">(same as name)</option>
               {columns.map((c) => (
                 <option key={c} value={c}>
                   {c}
