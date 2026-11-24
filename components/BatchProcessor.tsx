@@ -21,6 +21,7 @@ export default function BatchProcessor() {
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0);
   const [message, setMessage] = useState("");
+  const [format, setFormat] = useState<"png" | "pdf">("png");
 
   useEffect(() => {
     elementRef.current = element;
@@ -79,8 +80,12 @@ export default function BatchProcessor() {
       const saveAs = sanitize(rawFileName || name);
 
       const next: TextElement = { ...elementRef.current!, text: name };
-      const ok = await editorRef.current.saveCard(`${saveAs}.png`, next);
-      if (!ok) continue;
+      if (format === "pdf") {
+        await editorRef.current.saveCardAsPdf(`${saveAs}.pdf`, next);
+      } else {
+        const ok = await editorRef.current.saveCard(`${saveAs}.png`, next);
+        if (!ok) continue;
+      }
 
       elementRef.current = next;
       setElement(next);
@@ -164,9 +169,19 @@ export default function BatchProcessor() {
       <div className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700">
         <h3 className="mb-1 text-sm font-semibold">3. Generate</h3>
         <p className="mb-3 text-xs text-zinc-500">
-          Each image will open a Save As dialog (or download to your default folder),
-          one file per name.
+          Each image will be saved as PNG or PDF, one file per name.
         </p>
+        <div className="mb-3 flex items-center gap-3">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">Format:</span>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="radio" value="png" checked={format === "png"} onChange={() => setFormat("png")} />
+            PNG
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="radio" value="pdf" checked={format === "pdf"} onChange={() => setFormat("pdf")} />
+            PDF
+          </label>
+        </div>
         <button
           onClick={handleProcess}
           disabled={processing || !rows}

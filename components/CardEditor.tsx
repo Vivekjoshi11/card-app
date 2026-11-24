@@ -19,6 +19,7 @@ export interface TextElement {
 export interface CardEditorHandle {
   exportCard: (overrideElement?: TextElement) => string | null;
   saveCard: (filename: string, overrideElement?: TextElement) => Promise<string | null>;
+  saveCardAsPdf: (filename: string, overrideElement?: TextElement) => Promise<void>;
 }
 
 interface CardEditorProps {
@@ -43,6 +44,13 @@ const FONT_OPTIONS = [
 
 let idCounter = 0;
 const createId = () => `el-${Date.now()}-${idCounter++}`;
+
+const savePdf = async (dataUrl: string, filename: string, imgW: number, imgH: number): Promise<void> => {
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: imgW >= imgH ? "landscape" : "portrait", unit: "px", format: [imgW, imgH] });
+  pdf.addImage(dataUrl, "PNG", 0, 0, imgW, imgH);
+  pdf.save(filename);
+};
 
 const saveDataUrl = async (dataUrl: string, filename: string): Promise<void> => {
   const blob = await (await fetch(dataUrl)).blob();
@@ -170,7 +178,18 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
       [exportCard]
     );
 
-    useImperativeHandle(ref, () => ({ exportCard, saveCard }), [exportCard, saveCard]);
+    const saveCardAsPdf = useCallback(
+      async (filename: string, overrideElement?: TextElement): Promise<void> => {
+        const dataUrl = exportCard(overrideElement);
+        if (!dataUrl) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        await savePdf(dataUrl, filename, canvas.width, canvas.height);
+      },
+      [exportCard]
+    );
+
+    useImperativeHandle(ref, () => ({ exportCard, saveCard, saveCardAsPdf }), [exportCard, saveCard, saveCardAsPdf]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -260,6 +279,12 @@ const CardEditor = forwardRef<CardEditorHandle, CardEditorProps>(
                 className="rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900"
               >
                 Export PNG
+              </button>
+              <button
+                onClick={() => saveCardAsPdf(`${fileName.trim() || "card"}.pdf`)}
+                className="rounded-lg border border-zinc-300 px-4 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
+              >
+                Export PDF
               </button>
               {element && (
                 <button
