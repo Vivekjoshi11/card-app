@@ -167,6 +167,16 @@ export default function BatchProcessor() {
 
   return (
     <div className="space-y-6">
+      {/* Format toggle at top */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Output format:</span>
+        <label className="flex items-center gap-1.5 text-sm">
+          <input type="radio" checked={format === "pdf"} onChange={() => setFormat("pdf")} /> PDF
+        </label>
+        <label className="flex items-center gap-1.5 text-sm">
+          <input type="radio" checked={format === "png"} onChange={() => setFormat("png")} /> PNG
+        </label>
+      </div>
       {/* Card slots */}
       {slots.map((slot, idx) => (
         <div key={slot.id} className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700">
@@ -198,12 +208,14 @@ export default function BatchProcessor() {
         </div>
       ))}
 
-      <button
-        onClick={addSlot}
-        className="w-full rounded-2xl border-2 border-dashed border-zinc-300 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-500"
-      >
-        + Add another page / image
-      </button>
+      {format === "pdf" && (
+        <button
+          onClick={addSlot}
+          className="w-full rounded-2xl border-2 border-dashed border-zinc-300 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-500"
+        >
+          + Add another page / image
+        </button>
+      )}
 
       {/* Excel */}
       <div className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-700">
@@ -242,15 +254,6 @@ export default function BatchProcessor() {
         <p className="mb-3 text-xs text-zinc-500">
           PDF: one PDF per person with all pages. PNG: one image per page per person.
         </p>
-        <div className="mb-3 flex items-center gap-3">
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">Format:</span>
-          <label className="flex items-center gap-1.5 text-sm">
-            <input type="radio" checked={format === "pdf"} onChange={() => setFormat("pdf")} /> PDF
-          </label>
-          <label className="flex items-center gap-1.5 text-sm">
-            <input type="radio" checked={format === "png"} onChange={() => setFormat("png")} /> PNG
-          </label>
-        </div>
         <button
           onClick={handleProcess}
           disabled={processing || !rows}
